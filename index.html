@@ -162,17 +162,39 @@ let autoTimer = null;
 
 // ── PARSE CSV ────────────────────────
 function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toUpperCase());
-  const idx = k => headers.indexOf(k);
-  return lines.slice(1).map(line => {
-    const cols = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
-    const q = parseFloat(cols[idx('CANTIDAD')]?.replace(',','.'));
-    return (!isNaN(q) && cols[idx('FECHA')]) ? {
-      fecha: cols[idx('FECHA')], tienda: cols[idx('TIENDA')],
-      canje: cols[idx('CANJE')], cantidad: q
-    } : null;
-  }).filter(Boolean);
+  // Detecta separador: coma (CSV estándar de Google Sheets) o pipe (formato tabla)
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  const isPipe = lines[0].includes('|');
+
+  if (isPipe) {
+    // Formato pipe: | FECHA | TIENDA | CANJE | CANTIDAD |
+    return lines.map(line => {
+      const p = line.split('|').map(s => s.trim()).filter(Boolean);
+      if (p.length < 4) return null;
+      if (p[0].toUpperCase() === 'FECHA' || p[0].includes(':-')) return null;
+      const q = parseFloat(p[3].replace(',', '.'));
+      return (!isNaN(q)) ? { fecha:p[0], tienda:p[1], canje:p[2], cantidad:q } : null;
+    }).filter(Boolean);
+  } else {
+    // Formato CSV estándar (Google Sheets pub?output=csv)
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toUpperCase());
+    const idx = k => headers.indexOf(k);
+    return lines.slice(1).map(line => {
+      // Maneja campos con comillas y comas internas
+      const cols = [];
+      let cur = '', inQ = false;
+      for (const ch of line + ',') {
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      const q = parseFloat(cols[idx('CANTIDAD')]?.replace(',','.'));
+      return (!isNaN(q) && cols[idx('FECHA')]) ? {
+        fecha: cols[idx('FECHA')], tienda: cols[idx('TIENDA')],
+        canje: cols[idx('CANJE')], cantidad: q
+      } : null;
+    }).filter(Boolean);
+  }
 }
 
 // ── MEDIDAS ──────────────────────────
