@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Canjes</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:    #0c0c0c;
+    --surf:  #161616;
+    --border:#262626;
+    --acc:   #c8f542;
+    --acc2:  #f5a623;
+    --acc3:  #5ce1e6;
+    --acc4:  #c084fc;
+    --text:  #efefef;
+    --muted: #666;
+    --danger:#ff5c5c;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; padding: 2rem 2.5rem; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 32px; font-weight: 800; letter-spacing: -2px; }
+  .brand h1 em { color: var(--acc); font-style: normal; }
+  .brand-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; border-left: 1px solid var(--border); padding-left: 10px; }
+  .hdr-right { display: flex; align-items: center; gap: 12px; }
+  .live-badge { display: flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 6px var(--acc); animation: blink 2s ease-in-out infinite; }
+  .dot.loading { background: var(--acc2); box-shadow: 0 0 6px var(--acc2); animation: spin .7s linear infinite; }
+  .dot.error   { background: var(--danger); box-shadow: 0 0 6px var(--danger); animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes spin  { to{transform:rotate(360deg)} }
+
+  .auto-sel { font-family: 'DM Mono', monospace; font-size: 11px; background: var(--surf); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .auto-sel:focus { outline: none; border-color: var(--acc); }
+  .btn { font-family: 'DM Mono', monospace; font-size: 11px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s; }
+  .btn:hover { border-color: var(--acc); background: rgba(200,245,66,.06); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .spin-ico { display: inline-block; animation: spin .6s linear infinite; }
+
+  #alertBox { display:none; font-family:'DM Mono',monospace; font-size:11px; color:var(--danger); background:rgba(255,92,92,.08); border:1px solid rgba(255,92,92,.25); border-radius:8px; padding:10px 14px; margin-bottom:1.25rem; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 1.25rem; }
+  .kpi { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.25rem; position: relative; overflow: hidden; }
+  .kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kpi-c); }
+  .kpi-lbl { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+  .kpi-val { font-size:38px; font-weight:800; letter-spacing:-2px; line-height:1; color:var(--kpi-c); }
+  .kpi-unit { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:5px; }
+
+  .row2 { display:grid; grid-template-columns:1.4fr 1fr; gap:10px; margin-bottom:10px; }
+  .row1 { margin-bottom:10px; }
+  .card { background:var(--surf); border:1px solid var(--border); border-radius:10px; padding:1.25rem 1.5rem; }
+  .card-title { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:.9rem; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:10px; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); }
+  .ld { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-family:'DM Mono',monospace; font-size:11px; }
+  thead tr { border-bottom:1px solid var(--border); }
+  th { padding:7px 10px; text-align:left; color:var(--muted); font-weight:400; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+  td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.03); }
+  tbody tr:hover { background:rgba(255,255,255,.02); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:4px; font-size:9px; letter-spacing:.5px; }
+  .pill-toallas { background:rgba(200,245,66,.12); color:var(--acc); }
+  .pill-papel   { background:rgba(245,166,35,.12);  color:var(--acc2); }
+
+  footer { margin-top:1.25rem; display:flex; justify-content:space-between; font-family:'DM Mono',monospace; font-size:10px; color:#333; }
+
+  @media (max-width:800px) {
+    body { padding:1rem; }
+    .kpi-row { grid-template-columns:1fr 1fr; }
+    .row2 { grid-template-columns:1fr; }
+    header { flex-direction:column; gap:1rem; align-items:flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>CANJE<em>S</em></h1>
+    <span class="brand-sub">Dashboard en vivo</span>
+  </div>
+  <div class="hdr-right">
+    <div class="live-badge">
+      <span class="dot" id="dot"></span>
+      <span id="liveLabel">en vivo</span>
+    </div>
+    <select class="auto-sel" id="autoRefresh" onchange="setAutoRefresh()">
+      <option value="0">Sin auto-refresh</option>
+      <option value="30">Cada 30 seg</option>
+      <option value="60">Cada 1 min</option>
+      <option value="300">Cada 5 min</option>
+    </select>
+    <button class="btn" id="btnR" onclick="loadData()">
+      <span id="ico">↻</span> Refrescar
+    </button>
+  </div>
+</header>
+
+<div id="alertBox"></div>
+
+<div class="kpi-row" id="kpiRow"></div>
+
+<div class="row2">
+  <div class="card">
+    <div class="card-title">Total por tienda</div>
+    <div class="legend" id="legTienda"></div>
+    <div style="position:relative;height:210px"><canvas id="cTienda" role="img" aria-label="Total canjes por tienda"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Tipo de canje</div>
+    <div class="legend" id="legTipo"></div>
+    <div style="position:relative;height:210px"><canvas id="cTipo" role="img" aria-label="Distribución por tipo"></canvas></div>
+  </div>
+</div>
+
+<div class="row1">
+  <div class="card">
+    <div class="card-title">Evolución temporal</div>
+    <div class="legend" id="legEvol"></div>
+    <div style="position:relative;height:180px"><canvas id="cEvol" role="img" aria-label="Evolución temporal"></canvas></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Registros</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Tienda</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>Fuente: Google Sheets (CSV público)</span>
+  <span id="lastUpdate">—</span>
+</footer>
+
+<script>
+// ══════════════════════════════════════
+//  CONFIGURACIÓN — solo cambia esto
+// ══════════════════════════════════════
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjs_bKymJrWzseCCloDJ8T1y7zXU28wQCU0RrLmn659WRgtDrfiGv5FWh9OzeTcjgjJd2i3R5TawU2/pub?output=csv';
+// ══════════════════════════════════════
+
+const COLORS = {
+  tiendas: ['#c8f542','#f5a623','#5ce1e6','#c084fc'],
+  TOALLAS: '#c8f542',
+  PAPEL:   '#f5a623',
+};
+const KPI_COLORS = ['#c8f542','#f5a623','#5ce1e6','#c084fc'];
+
+let charts = {};
+let autoTimer = null;
+
+// ── PARSE CSV ────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toUpperCase());
+  const idx = k => headers.indexOf(k);
+  return lines.slice(1).map(line => {
+    const cols = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
+    const q = parseFloat(cols[idx('CANTIDAD')]?.replace(',','.'));
+    return (!isNaN(q) && cols[idx('FECHA')]) ? {
+      fecha: cols[idx('FECHA')], tienda: cols[idx('TIENDA')],
+      canje: cols[idx('CANJE')], cantidad: q
+    } : null;
+  }).filter(Boolean);
+}
+
+// ── MEDIDAS ──────────────────────────
+const getKPIs = d => {
+  const total = d.reduce((s,r)=>s+r.cantidad,0);
+  return { total, registros:d.length, tiendas:new Set(d.map(r=>r.tienda)).size, promedio:total/d.length };
+};
+const groupBy = (d,k) => d.reduce((a,r)=>{ a[r[k]]=(a[r[k]]||0)+r.cantidad; return a; },{});
+const getEvol = d => {
+  const m={};
+  d.forEach(r=>{ if(!m[r.fecha])m[r.fecha]={}; m[r.fecha][r.canje]=(m[r.fecha][r.canje]||0)+r.cantidad; });
+  return m;
+};
+const sortF = fs => [...fs].sort((a,b)=>{
+  const p=s=>{ const[dd,mm,yy]=s.split('/'); return new Date(yy,mm-1,dd); };
+  return p(a)-p(b);
+});
+
+// ── RENDER ───────────────────────────
+function kill(id) { if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+function render(data) {
+  const kpis    = getKPIs(data);
+  const byStore = groupBy(data,'tienda');
+  const byType  = groupBy(data,'canje');
+  const evol    = getEvol(data);
+  const stores  = Object.keys(byStore);
+  const types   = Object.keys(byType);
+  const fechas  = sortF(Object.keys(evol));
+
+  // KPIs
+  const kpiDefs = [
+    {lbl:'Total canjes', val:kpis.total.toFixed(1),   unit:'unidades'},
+    {lbl:'Registros',    val:kpis.registros,           unit:'filas'},
+    {lbl:'Tiendas',      val:kpis.tiendas,             unit:'activas'},
+    {lbl:'Promedio',     val:kpis.promedio.toFixed(1), unit:'por registro'},
+  ];
+  document.getElementById('kpiRow').innerHTML = kpiDefs.map((k,i)=>`
+    <div class="kpi" style="--kpi-c:${KPI_COLORS[i]}">
+      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-unit">${k.unit}</div>
+    </div>`).join('');
+
+  // Legends
+  document.getElementById('legTienda').innerHTML = stores.map((t,i)=>
+    `<div class="legend-item"><span class="ld" style="background:${COLORS.tiendas[i]||'#888'}"></span>${t} · ${byStore[t].toFixed(1)}</div>`).join('');
+  document.getElementById('legTipo').innerHTML = types.map(t=>
+    `<div class="legend-item"><span class="ld" style="background:${COLORS[t]||'#888'}"></span>${t} · ${byType[t].toFixed(1)}</div>`).join('');
+  document.getElementById('legEvol').innerHTML = types.map(t=>
+    `<div class="legend-item"><span class="ld" style="background:${COLORS[t]||'#888'}"></span>${t}</div>`).join('');
+
+  const gx = { ticks:{color:'#555',font:{size:10}}, grid:{color:'#1c1c1c'} };
+  const baseOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{ x:{...gx, ticks:{...gx.ticks,maxRotation:20}}, y:{...gx,beginAtZero:true} } };
+
+  kill('T');
+  charts['T'] = new Chart(document.getElementById('cTienda'),{
+    type:'bar',
+    data:{ labels:stores, datasets:[{data:stores.map(t=>byStore[t]), backgroundColor:COLORS.tiendas, borderRadius:5, borderSkipped:false}] },
+    options:baseOpts
+  });
+
+  kill('P');
+  charts['P'] = new Chart(document.getElementById('cTipo'),{
+    type:'doughnut',
+    data:{ labels:types, datasets:[{data:types.map(t=>byType[t]), backgroundColor:types.map(t=>COLORS[t]||'#888'), borderWidth:0}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'62%' }
+  });
+
+  kill('E');
+  charts['E'] = new Chart(document.getElementById('cEvol'),{
+    type:'line',
+    data:{ labels:fechas, datasets:types.map(t=>({
+      label:t, data:fechas.map(f=>evol[f]?.[t]||0),
+      borderColor:COLORS[t]||'#888', backgroundColor:(COLORS[t]||'#888')+'18',
+      tension:.4, fill:true, pointRadius:3, pointBackgroundColor:COLORS[t]||'#888'
+    })) },
+    options:{...baseOpts, scales:{...baseOpts.scales, x:{...gx,ticks:{...gx.ticks,font:{size:9},autoSkip:true,maxRotation:30}}}}
+  });
+
+  // Tabla (más recientes primero)
+  document.getElementById('tbody').innerHTML = [...data].reverse().map(r=>`
+    <tr>
+      <td>${r.fecha}</td>
+      <td>${r.tienda}</td>
+      <td><span class="pill pill-${r.canje.toLowerCase()}">${r.canje}</span></td>
+      <td style="text-align:right">${r.cantidad.toFixed(1)}</td>
+    </tr>`).join('');
+
+  document.getElementById('lastUpdate').textContent =
+    'Actualizado: ' + new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+// ── FETCH CSV ────────────────────────
+async function loadData() {
+  const btn   = document.getElementById('btnR');
+  const ico   = document.getElementById('ico');
+  const dot   = document.getElementById('dot');
+  const lbl   = document.getElementById('liveLabel');
+  const alert = document.getElementById('alertBox');
+
+  btn.disabled = true;
+  ico.classList.add('spin-ico');
+  dot.className = 'dot loading';
+  lbl.textContent = 'cargando...';
+  alert.style.display = 'none';
+
+  try {
+    const res = await fetch(CSV_URL + '&cachebust=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const data = parseCSV(text);
+    if (data.length === 0) throw new Error('No se encontraron filas válidas en el CSV');
+    render(data);
+    dot.className = 'dot';
+    lbl.textContent = 'en vivo';
+  } catch(err) {
+    dot.className = 'dot error';
+    lbl.textContent = 'error';
+    alert.style.display = 'block';
+    alert.textContent = '⚠ ' + err.message;
+  } finally {
+    btn.disabled = false;
+    ico.classList.remove('spin-ico');
+  }
+}
+
+// ── AUTO-REFRESH ─────────────────────
+function setAutoRefresh() {
+  clearInterval(autoTimer);
+  const secs = parseInt(document.getElementById('autoRefresh').value);
+  if (secs > 0) autoTimer = setInterval(loadData, secs * 1000);
+}
+
+loadData();
+</script>
+</body>
+</html>
