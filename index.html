@@ -161,30 +161,25 @@ let charts = {};
 let autoTimer = null;
 
 // ── PARSE CSV ────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  // Busca la línea de headers (contiene FECHA)
-  const headerIdx = lines.findIndex(l => l.toUpperCase().includes('FECHA'));
-  if (headerIdx === -1) return [];
-
-  const headers = lines[headerIdx].split(',').map(h => h.replace(/^"|"$/g,'').trim().toUpperCase());
-  const idx = k => headers.indexOf(k);
-
-  return lines.slice(headerIdx + 1).map(line => {
-    if (!line.trim()) return null;
-    const cols = [];
-    let cur = '', inQ = false;
-    for (const ch of line + ',') {
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-      else cur += ch;
-    }
-    const q = parseFloat(cols[idx('CANTIDAD')]?.replace(',','.'));
-    return (!isNaN(q) && cols[idx('FECHA')]) ? {
-      fecha: cols[idx('FECHA')], tienda: cols[idx('TIENDA')],
-      canje: cols[idx('CANJE')], cantidad: q
-    } : null;
+function parseCSV(raw) {
+  // 1. Normaliza saltos de línea (Windows \r\n → \n)
+  const text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // 2. Divide en líneas, descarta vacías
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // 3. Encuentra la fila de headers buscando "FECHA"
+  const hi = lines.findIndex(l => l.toUpperCase().startsWith('FECHA'));
+  if (hi === -1) return [];
+  const headers = lines[hi].split(',').map(h => h.replace(/"/g,'').trim().toUpperCase());
+  const iF = headers.indexOf('FECHA');
+  const iT = headers.indexOf('TIENDA');
+  const iC = headers.indexOf('CANJE');
+  const iQ = headers.indexOf('CANTIDAD');
+  if (iF<0||iT<0||iC<0||iQ<0) return [];
+  // 4. Parsea cada fila de datos
+  return lines.slice(hi + 1).map(line => {
+    const cols = line.split(',').map(c => c.replace(/"/g,'').trim());
+    const q = parseFloat(cols[iQ]);
+    return (!isNaN(q) && cols[iF]) ? { fecha:cols[iF], tienda:cols[iT], canje:cols[iC], cantidad:q } : null;
   }).filter(Boolean);
 }
 
